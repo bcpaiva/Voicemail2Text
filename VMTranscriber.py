@@ -14,14 +14,18 @@ import win32com.client
 import win32com
 from pathlib import Path
 from urllib.request import urlopen
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.platypus import SimpleDocTemplate, Paragraph, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet
 
 #------------------------------------------------------------------------------------------
 #Transcribe clients for boto3
 #------------------------------------------------------------------------------------------
 
-transcribe = boto3.client('transcribe', aws_access_key_id="AKIAIGL725O7PZ2ZFXDQ", aws_secret_access_key="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", region_name="us-east-1")
-s3 = boto3.resource('s3', aws_access_key_id="AKIAIGL725O7PZ2ZFXDQ", aws_secret_access_key="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", region_name="us-east-1")
-s3Client = boto3.client('s3', aws_access_key_id="AKIAIGL725O7PZ2ZFXDQ", aws_secret_access_key="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", region_name="us-east-1")
+transcribe = boto3.client('transcribe', aws_access_key_id="AKIAI67445KTFRAEMCSA", aws_secret_access_key="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", region_name="us-east-1")
+s3 = boto3.resource('s3', aws_access_key_id="AKIAI67445KTFRAEMCSA", aws_secret_access_key="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", region_name="us-east-1")
+s3Client = boto3.client('s3', aws_access_key_id="AKIAI67445KTFRAEMCSA", aws_secret_access_key="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", region_name="us-east-1")
 
 #------------------------------------------------------------------------------------------
 #Empty variables to handle input name
@@ -30,20 +34,22 @@ s3Client = boto3.client('s3', aws_access_key_id="AKIAIGL725O7PZ2ZFXDQ", aws_secr
 file_name = ""
 transcript_url = ""
 transcript_text = ""
+transcript_title = ""
 
 #------------------------------------------------------------------------------------------
 #User prompt and array initialized
 #------------------------------------------------------------------------------------------
-'''
-input_value = input("Enter the name of your MP3 file you would like transcribed to text " + "\n")
-input_array.append(input_value)
-'''
+
+input_value = input("This program will search the 'Voicemails' folder in your Outlook for .wav voicemail files." + "\n" + "It will then transcribe all of the voicemails and put the texts in a word document."  )
+
 
 input_array = []
 #------------------------------------------------------------------------------------------
-#Predefined list of values for testing
+#PDF doc that is going to be built
 #------------------------------------------------------------------------------------------
 
+doc = SimpleDocTemplate("TranscriptOutput.pdf",pagesize=letter)
+flowables = []
 uploadArray = ["12percent.mp3","criminals.mp3","dreamhouse.mp3"]
 
 #------------------------------------------------------------------------------------------
@@ -57,6 +63,15 @@ def write_to_output(transcript):
     file.write("\n")
 
 
+def pdf_output(title,text):
+    styles = getSampleStyleSheet()
+    para = Paragraph(title, style=styles["Normal"])
+    body = Paragraph(text, style=styles["Normal"])
+    flowables.append(para)
+    flowables.append(body)
+    flowables.append(PageBreak())
+
+
 #------------------------------------------------------------------------------------------
 #Get transcript from Amazon server
 #------------------------------------------------------------------------------------------
@@ -64,7 +79,7 @@ def write_to_output(transcript):
 def get_final_transcript(url):
     text = json.load(urlopen(url))
     transcript_text = (text['results']['transcripts'][0]['transcript'])
-    write_to_output(transcript_text)
+    pdf_output(transcript_title,transcript_text)
 
 #------------------------------------------------------------------------------------------
 #Check status of transcription job every five seconds
@@ -121,7 +136,7 @@ class ProgressPercentage(object):
                     percentage))
             if percentage == 100:
                 file_name = "https://s3.amazonaws.com/bhmoviequotes/" + self._filename
-                #transcribe_new_file(file_name,self._filename)
+                transcribe_new_file(file_name,self._filename)
             sys.stdout.flush()
 
 #------------------------------------------------------------------------------------------
@@ -193,6 +208,7 @@ for account in accounts:
 
 for upload in input_array:
     if Path(upload).is_file():
+        transcript_title = upload
         write_to_output(upload)
         print ("Uploading " + upload)
         s3Client.upload_file(upload,'bhmoviequotes',upload,Callback=ProgressPercentage(upload))
@@ -200,3 +216,4 @@ for upload in input_array:
     else:
         print ("File does not exist.")
         time.sleep(5)
+doc.build(flowables)
